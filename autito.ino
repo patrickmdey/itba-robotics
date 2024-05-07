@@ -1,19 +1,24 @@
 // Motor A connections
-int enA = 9;
-int rightBack = 8;
-int rightForward = 7;
+const int enA = 9;
+const int rightBack = 8;
+const int rightForward = 7;
 // Motor B connections
-int enB = 3;
-int leftForward = 5;
-int leftBack = 4;
+const int enB = 3;
+const int leftForward = 5;
+const int leftBack = 4;
 
 // distance sensor connections
 const int trigPin = 10;
 const int echoPin = 2;
 
+// light sensor connections
+const int LEFT_LDR = A0;
+const int RIGHT_LDR = A1;
+
 long duration;
 int distance;
 bool goingForward = true;
+bool turning = false;
 
 void setup() {
 	// Set all the motor control pins to outputs
@@ -26,9 +31,9 @@ void setup() {
 	
 	// Turn off motors - Initial state
 	digitalWrite(rightBack, LOW);
-	digitalWrite(rightForward, LOW);
-	digitalWrite(leftForward, LOW);
+	digitalWrite(rightForward, HIGH);
 	digitalWrite(leftBack, LOW);
+  digitalWrite(leftForward, HIGH);
 
   pinMode(trigPin, OUTPUT); // Sets the trigPin as an Output
   pinMode(echoPin, INPUT); // Sets the echoPin as an Input
@@ -46,6 +51,7 @@ void loop() {
   digitalWrite(trigPin, LOW);
   // Reads the echoPin, returns the sound wave travel time in microseconds
   duration = pulseIn(echoPin, HIGH);
+
   // Calculating the distance
   distance = duration * 0.034 / 2;
 
@@ -55,7 +61,7 @@ void loop() {
   Serial.print("Distance: ");
   Serial.println(distance);
 
-  if (distance < 15 && goingForward) {
+  if (goingForward && distance < 15) {
     turnOffMotors();
     delay(200);
 
@@ -79,7 +85,44 @@ void loop() {
     digitalWrite(leftBack, LOW);
     digitalWrite(rightForward, HIGH);
     digitalWrite(rightBack, LOW);
+  } else {
+    // Going forward & distance >= 15
+
+    int left_ldr_val = analogRead(LEFT_LDR);
+    int right_ldr_val = analogRead(RIGHT_LDR);
+    Serial.print("LEFT LDR Value is: ");
+    Serial.println(left_ldr_val);
+
+    Serial.print("RIGHT LDR Value is: ");
+    Serial.println(right_ldr_val);
+
+    if (!turning) {
+      if (left_ldr_val > 350 && right_ldr_val <= 350) {
+        turning = true;
+        // Only left > 350
+        digitalWrite(leftForward, LOW);
+        digitalWrite(leftBack, LOW);
+        digitalWrite(rightForward, HIGH);
+        digitalWrite(rightBack, LOW);
+      } else if (left_ldr_val <= 350 && right_ldr_val > 350) {
+        turning = true;
+        // only right > 350
+        digitalWrite(leftForward, HIGH);
+        digitalWrite(leftBack, LOW);
+        digitalWrite(rightForward, LOW);
+        digitalWrite(rightBack, LOW);
+      } 
+    } else if ((left_ldr_val <= 350 && right_ldr_val <= 350) || (left_ldr_val > 350 && right_ldr_val > 350)) {
+      turning = false;
+      digitalWrite(leftForward, HIGH);
+      digitalWrite(leftBack, LOW);
+      digitalWrite(rightForward, HIGH);
+      digitalWrite(rightBack, LOW);
+    }
   }
+
+  delay(100);
+
 }
 
 void turnOffMotors() {
