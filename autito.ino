@@ -20,7 +20,7 @@ int distance;
 bool goingForward = true;
 bool turning = false;
 
-bool lightAttracted = true;
+bool lightAttracted = false;
 
 void setup() {
 	// Set all the motor control pins to outputs
@@ -72,7 +72,7 @@ void loop() {
     // go back
     goBackwards();
 
-    delay(2000);
+    delay(1000);
   } else if (!goingForward) {
     turnOffMotors();
     delay(200);
@@ -96,11 +96,11 @@ void loop() {
       if (left_ldr_val > 350 && right_ldr_val <= 350) {
         turning = true;
         // Only left > 350
-        lightAttracted ? goRight() : goLeft();
+        lightAttracted ? goLeft() : goRight();
       } else if (left_ldr_val <= 350 && right_ldr_val > 350) {
         turning = true;
         // only right > 350
-        lightAttracted ? goLeft() : goRight();
+        lightAttracted ? goRight() : goLeft();
       } 
     } else if ((left_ldr_val <= 350 && right_ldr_val <= 350) || (left_ldr_val > 350 && right_ldr_val > 350)) {
       turning = false;
@@ -120,14 +120,14 @@ void turnOffMotors() {
 	digitalWrite(rightBack, LOW);
 }
 
-void goRight() {
+void goLeft() {
   digitalWrite(leftForward, LOW);
   digitalWrite(leftBack, LOW);
   digitalWrite(rightForward, HIGH);
   digitalWrite(rightBack, LOW);
 }
 
-void goLeft() {
+void goRight() {
   digitalWrite(leftForward, HIGH);
   digitalWrite(leftBack, LOW);
   digitalWrite(rightForward, LOW);
