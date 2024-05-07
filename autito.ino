@@ -20,6 +20,8 @@ int distance;
 bool goingForward = true;
 bool turning = false;
 
+bool lightAttracted = true;
+
 void setup() {
 	// Set all the motor control pins to outputs
 	pinMode(enA, OUTPUT);
@@ -68,10 +70,7 @@ void loop() {
     goingForward = false;
 
     // go back
-    digitalWrite(leftForward, LOW);
-    digitalWrite(leftBack, HIGH);
-    digitalWrite(rightForward, LOW);
-    digitalWrite(rightBack, HIGH);
+    goBackwards();
 
     delay(2000);
   } else if (!goingForward) {
@@ -81,10 +80,7 @@ void loop() {
     goingForward = true;
 
     // Go forward
-    digitalWrite(leftForward, HIGH);
-    digitalWrite(leftBack, LOW);
-    digitalWrite(rightForward, HIGH);
-    digitalWrite(rightBack, LOW);
+    goForward();
   } else {
     // Going forward & distance >= 15
 
@@ -100,24 +96,15 @@ void loop() {
       if (left_ldr_val > 350 && right_ldr_val <= 350) {
         turning = true;
         // Only left > 350
-        digitalWrite(leftForward, LOW);
-        digitalWrite(leftBack, LOW);
-        digitalWrite(rightForward, HIGH);
-        digitalWrite(rightBack, LOW);
+        lightAttracted ? goRight() : goLeft();
       } else if (left_ldr_val <= 350 && right_ldr_val > 350) {
         turning = true;
         // only right > 350
-        digitalWrite(leftForward, HIGH);
-        digitalWrite(leftBack, LOW);
-        digitalWrite(rightForward, LOW);
-        digitalWrite(rightBack, LOW);
+        lightAttracted ? goLeft() : goRight();
       } 
     } else if ((left_ldr_val <= 350 && right_ldr_val <= 350) || (left_ldr_val > 350 && right_ldr_val > 350)) {
       turning = false;
-      digitalWrite(leftForward, HIGH);
-      digitalWrite(leftBack, LOW);
-      digitalWrite(rightForward, HIGH);
-      digitalWrite(rightBack, LOW);
+      goForward();
     }
   }
 
@@ -131,5 +118,33 @@ void turnOffMotors() {
 	digitalWrite(leftBack, LOW);
   digitalWrite(rightForward, LOW);
 	digitalWrite(rightBack, LOW);
+}
+
+void goRight() {
+  digitalWrite(leftForward, LOW);
+  digitalWrite(leftBack, LOW);
+  digitalWrite(rightForward, HIGH);
+  digitalWrite(rightBack, LOW);
+}
+
+void goLeft() {
+  digitalWrite(leftForward, HIGH);
+  digitalWrite(leftBack, LOW);
+  digitalWrite(rightForward, LOW);
+  digitalWrite(rightBack, LOW);
+}
+
+void goForward() {
+  digitalWrite(leftForward, HIGH);
+  digitalWrite(leftBack, LOW);
+  digitalWrite(rightForward, HIGH);
+  digitalWrite(rightBack, LOW);
+}
+
+void goBackwards() {
+  digitalWrite(leftForward, LOW);
+  digitalWrite(leftBack, HIGH);
+  digitalWrite(rightForward, LOW);
+  digitalWrite(rightBack, HIGH);
 }
 
