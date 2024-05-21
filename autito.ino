@@ -1,25 +1,12 @@
-// Motor A connections
-// const int enA = 9;
-// const int rightBack = 8;
-// const int rightForward = 7;
-// // Motor B connections
-// const int enB = 3;
-// const int leftForward = 5;
-// const int leftBack = 4;
-
-// // distance sensor connections
-// const int trigPin = 10;
-// const int echoPin = 2;
-
-// // light sensor connections
-// const int LEFT_LDR = A0;
-// const int RIGHT_LDR = A1;
-
-// long duration;
-// int distance;
 bool goingForward = true;
 bool turning = false;
 bool lightAttracted = false;
+static unsigned int LIGHT_THRESHOLD = 380;
+
+void print_value(char* string, char* value) {
+  Serial.print(string);
+  Serial.println(value);
+}
 
 class LightSensor {
   int sensorPin;
@@ -57,14 +44,14 @@ struct MotorAction {
   int speed;  // Only used for GO_FORWARD, ignored for other actions
 
   // Constructor for DO_NOTHING
-public:
-  MotorAction(MotorActionType actionType)
-    : type(actionType), speed(0) {}
+  public:
+    MotorAction(MotorActionType actionType)
+      : type(actionType), speed(0) {}
 
-  // Constructor for GO_FORWARD or GO_BACKWARD with speed
-public:
-  MotorAction(MotorActionType actionType, int actionSpeed)
-    : type(actionType), speed(actionSpeed) {}
+    // Constructor for GO_FORWARD or GO_BACKWARD with speed
+  public:
+    MotorAction(MotorActionType actionType, int actionSpeed)
+      : type(actionType), speed(actionSpeed) {}
 };
 
 class Motor {
@@ -73,19 +60,19 @@ class Motor {
   int motorPinSpeed;
   MotorAction currentAction;
 
-public:
-  Motor(int pinSpeed, int pinBack, int pinForward)
-    : motorPinSpeed(pinSpeed),
-      motorPinBack(pinBack),
-      motorPinForward(pinForward),
-      currentAction(MotorActionType::GO_FORWARD, 120) {
-    analogWrite(motorPinSpeed, 120);
-    pinMode(pinSpeed, OUTPUT);
-    pinMode(pinBack, OUTPUT);
-    pinMode(pinForward, OUTPUT);
-    digitalWrite(pinBack, LOW);
-    digitalWrite(pinForward, HIGH);
-  }
+  public:
+    Motor(int pinSpeed, int pinBack, int pinForward)
+      : motorPinSpeed(pinSpeed),
+        motorPinBack(pinBack),
+        motorPinForward(pinForward),
+        currentAction(MotorActionType::GO_FORWARD, 120) {
+      analogWrite(motorPinSpeed, 120);
+      pinMode(pinSpeed, OUTPUT);
+      pinMode(pinBack, OUTPUT);
+      pinMode(pinForward, OUTPUT);
+      digitalWrite(pinBack, LOW);
+      digitalWrite(pinForward, HIGH);
+    }
 
   void Update(MotorAction newAction) {
     if (currentAction.type == newAction.type && currentAction.speed == newAction.speed) {
@@ -122,14 +109,13 @@ class DistanceSensor {
   unsigned long previousMillis;
 
   public:
-    DistanceSensor(int trigPinNumber, int echoPinNumber, uint32_t onTimeVal, uint32_t offTimeVal) :
-      trigPin(trigPinNumber),
-      echoPin(echoPinNumber),
-      onTime(onTimeVal),
-      offTime(offTimeVal),
-      isOn(false),
-      previousMillis(millis())
-    {
+    DistanceSensor(int trigPinNumber, int echoPinNumber, uint32_t onTimeVal, uint32_t offTimeVal)
+      : trigPin(trigPinNumber),
+        echoPin(echoPinNumber),
+        onTime(onTimeVal),
+        offTime(offTimeVal),
+        isOn(false),
+        previousMillis(millis()) {
       pinMode(trigPin, OUTPUT);  // Sets the trigPin as an Output
       pinMode(echoPin, INPUT);   // Sets the echoPin as an Input
     }
@@ -155,12 +141,13 @@ class DistanceSensor {
 };
 
 enum CarAction {
+  INIT_STATE,
   GOING_FORWARD,
   GOING_BACKWARD,
   TURNING_RIGHT,
   TURNING_LEFT,
   WAITING_TO_GO_BACKWARD,
-  WAITING_TO_GO_FORWARD
+  DOING_NOTHING
 };
 
 
@@ -171,7 +158,6 @@ class Car {
   LightSensor rightLightSensor;
   DistanceSensor distanceSensor;
 
-
   bool lightAttracted;
   unsigned long previousMillis;
   unsigned long timeToWait;
@@ -181,248 +167,131 @@ class Car {
   CarAction action;
 
   public:
-    Car(bool isLightAttracted) :
-      leftMotor(3, 4, 5),
-      rightMotor(9, 8, 7),
-      leftLightSensor(A0, 100),
-      rightLightSensor(A1, 100),
-      distanceSensor(10, 2, 10, 2),
-      previousMillis(millis()),
-      timeToWait(0),
-      action(GOING_FORWARD),
-      lightAttracted(isLightAttracted)
-    {}
+    Car(bool isLightAttracted)
+      : leftMotor(3, 4, 5),
+        rightMotor(9, 8, 7),
+        leftLightSensor(A0, 100),
+        rightLightSensor(A1, 100),
+        distanceSensor(10, 2, 10, 2),
+        previousMillis(millis()),
+        timeToWait(200),
+        action(CarAction::INIT_STATE),
+        lightAttracted(isLightAttracted) {
+          Serial.println();
+          Serial.println("NEW RUN");
+          distance = 1000;
+          leftLightSensorVal = 200;
+          rightLightSensorVal = 200;
+        }
 
   void Update() {
     unsigned int currentMillis = millis();
     int elapsed = currentMillis - previousMillis;
-    if (elapsed < timeToWait) {
-      return;
-    }
-
+    bool action_can_wait = (action == CarAction::INIT_STATE ||action == CarAction::WAITING_TO_GO_BACKWARD || action == CarAction::GOING_BACKWARD);
+    
     distance = distanceSensor.Update();
     leftLightSensorVal = leftLightSensor.Update();
     rightLightSensorVal = rightLightSensor.Update();
 
-    if (action == CarAction::GOING_BACKWARD && distance < 15) {
+    if (action_can_wait && elapsed < timeToWait) {
+      return;
+    }
+
+    //Serial.print("ACTION: ");Serial.print(action);Serial.print(" --- Distance: "); Serial.print(distance);Serial.print(" | LeftLight: "); Serial.print(leftLightSensorVal);Serial.print(" | RightLight: "); Serial.println(rightLightSensorVal);
+
+    if (action == CarAction::GOING_FORWARD && distance < 15) {
+      Serial.print("PARED!") ;
       turnOffMotors();
-      timeToWait = 200;
+      timeToWait = 10;
       previousMillis = currentMillis;
       action = CarAction::WAITING_TO_GO_BACKWARD;
+      Serial.println("WAITING TO GO BACKWARD");
       return;
     }
 
     switch (action) {
-      case CarAction::WAITING_TO_GO_BACKWARD:
-        action = CarAction::GOING_BACKWARD;
-        MotorAction goBackwards(MotorActionType::GO_BACKWARD, 120);
-        leftMotor.Update(goBackwards);
-        rightMotor.Update(goBackwards);
 
-        timeToWait = 2000;
+      case CarAction::INIT_STATE:
+        action = CarAction::GOING_FORWARD;
         break;
-      case CarAction::WAITING_TO_GO_FORWARD:
-        goForward();
-
-        break;
+      // The car is going forward and it's going to check if it needs to turn
       case CarAction::GOING_FORWARD:
-        if (leftLightSensorVal > 350 && rightLightSensorVal <= 350) {
-          turning = true;
-          // Only left > 350
-          lightAttracted ? goLeft() : goRight();
-        } else if (leftLightSensorVal <= 350 && rightLightSensorVal > 350) {
-          turning = true;
-          // only right > 350
-          lightAttracted ? goRight() : goLeft();
+        Serial.println("GOING FORWARD");
+        if (leftLightSensorVal > LIGHT_THRESHOLD && rightLightSensorVal <= LIGHT_THRESHOLD) {
+          // Only left > LIGHT_THRESHOLD
+          action = lightAttracted ? goLeft() : goRight();
+        } else if (leftLightSensorVal <= LIGHT_THRESHOLD && rightLightSensorVal > LIGHT_THRESHOLD) {
+          // only right > LIGHT_THRESHOLD
+          action = lightAttracted ? goRight() : goLeft();
         }
         break;
+      
+      // The car met a wall and its going to start going backwards for 2000ms
+      case CarAction::WAITING_TO_GO_BACKWARD:
+        timeToWait = 2000;
+        action = goBackwards();
+        break;
+
+      case CarAction::GOING_BACKWARD:
+        action = goForward();
+        break;
+      
       case CarAction::TURNING_LEFT:
       case CarAction::TURNING_RIGHT:
         // Going forward & distance >= 15
-        if ((leftLightSensorVal <= 350 && rightLightSensorVal <= 350) || (leftLightSensorVal > 350 && rightLightSensorVal > 350)) {
-          turning = false;
-          goForward();
+        if ((leftLightSensorVal <= LIGHT_THRESHOLD && rightLightSensorVal <= LIGHT_THRESHOLD) || (leftLightSensorVal > LIGHT_THRESHOLD && rightLightSensorVal > LIGHT_THRESHOLD)) {
+          action = goForward();
         }
+        return;
     }
   }
 
-  void goForward() {
-    action = CarAction::GOING_FORWARD;
+  CarAction goForward() {
+    Serial.println("GOING FORWARD");
     MotorAction goForward(MotorActionType::GO_FORWARD, 120);
     leftMotor.Update(goForward);
     rightMotor.Update(goForward);
+    return CarAction::GOING_FORWARD;
   }
 
-  void goRight() {
-    action = CarAction::TURNING_RIGHT;
+  CarAction goRight() {
+    Serial.println("GOING RIGHT");
     leftMotor.Update(MotorAction(MotorActionType::GO_FORWARD, 120));
     rightMotor.Update(MotorAction(MotorActionType::DO_NOTHING));
+    return CarAction::TURNING_RIGHT;
   }
 
-  void goLeft() {
-    action = CarAction::TURNING_LEFT;
+  CarAction goLeft() {
+    Serial.println("GOING LEFT");
     leftMotor.Update(MotorAction(MotorActionType::DO_NOTHING));
     rightMotor.Update(MotorAction(MotorActionType::GO_FORWARD, 120));
+    return CarAction::TURNING_LEFT;
   }
 
-  void turnOffMotors() {
-    // Turn off all motors
-    // digitalWrite(leftForward, LOW);
-    // digitalWrite(leftBack, LOW);
-    // digitalWrite(rightForward, LOW);
-    // digitalWrite(rightBack, LOW);
+  CarAction turnOffMotors() {
+    Serial.println("TURNING OFF MOTORS");
     leftMotor.Update(MotorAction(MotorActionType::DO_NOTHING));
     rightMotor.Update(MotorAction(MotorActionType::DO_NOTHING));
+    return CarAction::DOING_NOTHING;
   }
+
+  CarAction goBackwards(){
+    Serial.println("WAITING TO GO BACKWARD");
+    MotorAction goBackwards(MotorActionType::GO_BACKWARD, 120);
+    leftMotor.Update(goBackwards);
+    rightMotor.Update(goBackwards);
+    return CarAction::GOING_BACKWARD;
+  }
+
 };
 
-// Motor leftMotor(3, 4, 5);
-// Motor rightMotor(9, 8, 7);
-
-// DistanceSensor distSensor(10, 2, 10, 2);
-
-// LightSensor leftLightSensor(A0, 100);
-// LightSensor rightLightSensor(A1, 100);
 
 Car car(true);
 
 void setup() {
-  // Set all the motor control pins to outputs
-  // pinMode(enA, OUTPUT);
-  // pinMode(enB, OUTPUT);
-  // pinMode(rightBack, OUTPUT);
-  // pinMode(rightForward, OUTPUT);
-  // pinMode(leftForward, OUTPUT);
-  // pinMode(leftBack, OUTPUT);
-
-  // // Turn off motors - Initial state
-  // digitalWrite(rightBack, LOW);
-  // digitalWrite(rightForward, HIGH);
-  // digitalWrite(leftBack, LOW);
-  // digitalWrite(leftForward, HIGH);
-
-  // pinMode(trigPin, OUTPUT); // Sets the trigPin as an Output
-  // pinMode(echoPin, INPUT); // Sets the echoPin as an Input
-
   Serial.begin(9600);  // Starts the serial communication
 }
 
 void loop() {
   car.Update();
 }
-  //  if (goingForward && distance < 15) {
-  //   turnOffMotors();
-  //   // delay(200);
-
-  //   goingForward = false;
-
-  //   // go back
-  //   goBackwards();
-
-  //   delay(1000);
-  // } else if (!goingForward) {
-  //   turnOffMotors();
-  //   delay(200);
-
-  //   goingForward = true;
-
-  //   // Go forward
-  //   goForward();
-  // }
-
-
-  // Clears the trigPin
-  // digitalWrite(trigPin, LOW);
-  // delayMicroseconds(2);
-  // // Sets the trigPin on HIGH state for 10 micro seconds
-  // digitalWrite(trigPin, HIGH);
-  // delayMicroseconds(10);
-  // digitalWrite(trigPin, LOW);
-  // // Reads the echoPin, returns the sound wave travel time in microseconds
-  // duration = pulseIn(echoPin, HIGH);
-
-  // // Calculating the distance
-  // distance = duration * 0.034 / 2;
-
-  // analogWrite(enA, 120);
-  // analogWrite(enB, 120);
-
-  // Serial.print("Distance: ");
-  // Serial.println(distance);
-
-  // if (goingForward && distance < 15) {
-  //   turnOffMotors();
-  //   delay(200);
-
-  //   goingForward = false;
-
-  //   // go back
-  //   goBackwards();
-
-  //   delay(1000);
-  // } else if (!goingForward) {
-  //   turnOffMotors();
-  //   delay(200);
-
-  //   goingForward = true;
-
-  //   // Go forward
-  //   goForward();
-  // } else {
-  //   // Going forward & distance >= 15
-
-  //   int left_ldr_val = analogRead(LEFT_LDR);
-  //   int right_ldr_val = analogRead(RIGHT_LDR);
-  //   Serial.print("LEFT LDR Value is: ");
-  //   Serial.println(left_ldr_val);
-
-  //   Serial.print("RIGHT LDR Value is: ");
-  //   Serial.println(right_ldr_val);
-
-  //   if (!turning) {
-  //     if (left_ldr_val > 350 && right_ldr_val <= 350) {
-  //       turning = true;
-  //       // Only left > 350
-  //       lightAttracted ? goLeft() : goRight();
-  //     } else if (left_ldr_val <= 350 && right_ldr_val > 350) {
-  //       turning = true;
-  //       // only right > 350
-  //       lightAttracted ? goRight() : goLeft();
-  //     }
-  //   } else if ((left_ldr_val <= 350 && right_ldr_val <= 350) || (left_ldr_val > 350 && right_ldr_val > 350)) {
-  //     turning = false;
-  //     goForward();
-  //   }
-  // }
-
-  // delay(100);
-  // }
-
-
-// void goLeft() {
-//   digitalWrite(leftForward, LOW);
-//   digitalWrite(leftBack, LOW);
-//   digitalWrite(rightForward, HIGH);
-//   digitalWrite(rightBack, LOW);
-// }
-
-// void goRight() {
-//   digitalWrite(leftForward, HIGH);
-//   digitalWrite(leftBack, LOW);
-//   digitalWrite(rightForward, LOW);
-//   digitalWrite(rightBack, LOW);
-// }
-
-// void goForward() {
-//   digitalWrite(leftForward, HIGH);
-//   digitalWrite(leftBack, LOW);
-//   digitalWrite(rightForward, HIGH);
-//   digitalWrite(rightBack, LOW);
-// }
-
-// void goBackwards() {
-//   digitalWrite(leftForward, LOW);
-//   digitalWrite(leftBack, HIGH);
-//   digitalWrite(rightForward, LOW);
-//   digitalWrite(rightBack, HIGH);
-// }
